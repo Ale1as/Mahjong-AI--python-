@@ -1,190 +1,230 @@
 import random
-import time
 import sys
+import time
+import tkinter as tk
+from tkinter import messagebox
 
-# Fancy color printing for console (works in most terminals)
-class Colors:
-    CYAN = '\033[96m'
-    MAGENTA = '\033[95m'
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    RESET = '\033[0m'
+# Fancy colors
+PLAYER_COLOR = '#00CED1'  # Cyan
+AI_COLOR = '#DA70D6'      # Orchid
+MATCH_COLOR = '#7CFC00'   # LawnGreen
+MISMATCH_COLOR = '#FF6347' # Tomato
+DEFAULT_TILE_COLOR = '#FFFFFF'
 
-# Initialize variables
-deck = []
-player_hand = []
-ai_hand = []
-player_played_tiles = []
-difficulty = "easy"
+class TileMatchingGame:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Tile Matching Game 🎮")
+        self.deck = []
+        self.player_hand = []
+        self.ai_hand = []
+        self.player_tiles_buttons = []
+        self.selected_tiles = []
+        self.difficulty = 'easy'
 
-def print_separator():
-    print("\n" + "-" * 40 + "\n")
+        self.create_widgets()
+        self.initialize_game()
 
-def tile_string(number):
-    return f"[ {number} ]"
+    def create_widgets(self):
+        self.info_label = tk.Label(self.root, text="Welcome to Tile Matching!", font=("Arial", 16))
+        self.info_label.pack(pady=10)
 
-def shuffle(deck):
-    random.shuffle(deck)
+        self.player_frame = tk.Frame(self.root)
+        self.player_frame.pack(pady=10)
 
-def draw_tile():
-    if deck:
-        return deck.pop(0)
-    return None
+        self.ai_frame = tk.Frame(self.root)
+        self.ai_frame.pack(pady=10)
 
-def show_hand(hand, title):
-    print(f"\n{title}:")
-    for idx, tile in enumerate(hand):
-        print(f"[{idx}] {tile_string(tile)}", end='  ')
-    print()
+        self.control_frame = tk.Frame(self.root)
+        self.control_frame.pack(pady=10)
 
-def is_valid_selection(first, second, hand):
-    return 0 <= first < len(hand) and 0 <= second < len(hand) and first != second
+        self.draw_button = tk.Button(self.control_frame, text="Draw Tile", command=self.draw_tile_for_player)
+        self.draw_button.grid(row=0, column=0, padx=10)
 
-def remove_tiles(hand, idx1, idx2):
-    for idx in sorted([idx1, idx2], reverse=True):
-        del hand[idx]
+        self.start_button = tk.Button(self.control_frame, text="Choose Difficulty", command=self.choose_difficulty)
+        self.start_button.grid(row=0, column=1, padx=10)
 
-def initialize_game():
-    global deck, player_hand, ai_hand
-    deck = [i for i in range(1, 10)] * 2  # 1-9 tiles, two of each
-    shuffle(deck)
-    player_hand = [draw_tile() for _ in range(5)]
-    ai_hand = [draw_tile() for _ in range(5)]
+    def initialize_game(self):
+        self.deck = [i for i in range(1, 10)] * 2
+        random.shuffle(self.deck)
+        self.player_hand = [self.draw_tile() for _ in range(5)]
+        self.ai_hand = [self.draw_tile() for _ in range(5)]
+        self.update_display()
 
-def choose_difficulty():
-    global difficulty
-    print_separator()
-    print("🎯 Choose AI Difficulty: (easy / hard)")
-    diff = input("> ").lower()
-    if diff == "hard":
-        difficulty = "hard"
-    else:
-        difficulty = "easy"
+    def draw_tile(self):
+        return self.deck.pop(0) if self.deck else None
 
-def can_match(hand):
-    for i in range(len(hand)):
-        for j in range(i + 1, len(hand)):
-            if hand[i] == hand[j]:
-                return True
-    return False
+    def update_display(self):
+        # Clear player tiles
+        for btn in self.player_tiles_buttons:
+            btn.destroy()
+        self.player_tiles_buttons = []
 
-def player_turn():
-    global player_hand
-    print_separator()
-    print(f"{Colors.CYAN}🎮 YOUR TURN{Colors.RESET}")
-    show_hand(player_hand, "Your Hand")
+        for idx, tile in enumerate(self.player_hand):
+            btn = tk.Button(self.player_frame, text=f"{tile}", font=("Arial", 18), width=4, height=2,
+                            bg=DEFAULT_TILE_COLOR, command=lambda idx=idx: self.select_tile(idx))
+            btn.grid(row=0, column=idx, padx=5)
+            self.player_tiles_buttons.append(btn)
 
-    if not can_match(player_hand):
-        print(f"\n⚠️ No possible matches. You must draw a tile.")
-        draw_tile_for_player()
-        return
+        # Show AI hand (hidden)
+        for widget in self.ai_frame.winfo_children():
+            widget.destroy()
 
-    try:
-        selection = input("\n👉 Select two tiles to match (indexes separated by space): ").split()
-        first, second = int(selection[0]), int(selection[1])
+        for idx, tile in enumerate(self.ai_hand):
+            lbl = tk.Label(self.ai_frame, text="[ ? ]", font=("Arial", 18), width=4, height=2, bg=AI_COLOR)
+            lbl.grid(row=0, column=idx, padx=5)
 
-        if is_valid_selection(first, second, player_hand):
-            if player_hand[first] == player_hand[second]:
-                print(f"\n{Colors.GREEN}✅ Matched!{Colors.RESET}")
-                played_tile = player_hand[first]
-                remove_tiles(player_hand, first, second)
-                player_played_tiles.append(played_tile)
-            else:
-                print(f"\n{Colors.RED}❌ Not a match!{Colors.RESET}")
+    def select_tile(self, idx):
+        if idx in self.selected_tiles:
+            self.selected_tiles.remove(idx)
+            self.player_tiles_buttons[idx].config(bg=DEFAULT_TILE_COLOR)
         else:
-            print("\n⚠️ Invalid selection. Turn skipped.")
-    except (ValueError, IndexError):
-        print("\n⚠️ Invalid input. Turn skipped.")
+            self.selected_tiles.append(idx)
+            self.player_tiles_buttons[idx].config(bg=PLAYER_COLOR)
 
-def draw_tile_for_player():
-    new_tile = draw_tile()
-    if new_tile is not None:
-        print(f"{Colors.CYAN}🎮 You drew a tile: {tile_string(new_tile)}{Colors.RESET}")
-        player_hand.append(new_tile)
-    else:
-        print(f"{Colors.RED}💀 No tiles left in the deck!{Colors.RESET}")
-        print(f"{Colors.RED}💀 You cannot draw anymore. Your turn is skipped.{Colors.RESET}")
+        if len(self.selected_tiles) == 2:
+            self.root.after(500, self.check_match)
 
-def ai_turn():
-    global ai_hand
-    print_separator()
-    print(f"{Colors.MAGENTA}🤖 AI'S TURN{Colors.RESET}")
-    time.sleep(1)
+    def check_match(self):
+        idx1, idx2 = self.selected_tiles
+        if self.player_hand[idx1] == self.player_hand[idx2]:
+            self.info_label.config(text="✅ You made a match!")
+            self.flash_tiles(MATCH_COLOR)
+            self.root.after(800, self.remove_tiles)
+        else:
+            self.info_label.config(text="❌ Not a match!")
+            self.flash_tiles(MISMATCH_COLOR)
+            self.root.after(800, self.reset_selection)
 
-    if difficulty == "hard":
-        ai_make_smart_decision()
-    else:
-        ai_random_decision()
+    def flash_tiles(self, color):
+        for idx in self.selected_tiles:
+            self.player_tiles_buttons[idx].config(bg=color)
 
-    ai_hand = [tile for tile in ai_hand if tile is not None]
-    ai_hand.sort()
+    def remove_tiles(self):
+        idx1, idx2 = sorted(self.selected_tiles, reverse=True)
+        del self.player_hand[idx1]
+        del self.player_hand[idx2]
+        self.selected_tiles.clear()
+        self.update_display()
+        self.check_game_over()
+        self.root.after(1000, self.ai_turn)
 
-def ai_make_smart_decision():
-    global ai_hand
-    """AI on hard difficulty will make smarter matching decisions."""
-    possible_matches = []
-    
-    # Look for pairs in AI's hand
-    for i in range(len(ai_hand)):
-        for j in range(i + 1, len(ai_hand)):
-            if ai_hand[i] == ai_hand[j]:
-                possible_matches.append((i, j))
+    def reset_selection(self):
+        for idx in self.selected_tiles:
+            self.player_tiles_buttons[idx].config(bg=DEFAULT_TILE_COLOR)
+        self.selected_tiles.clear()
 
-    if possible_matches:
-        i, j = possible_matches[0]
-        print(f"🤖 AI matched {tile_string(ai_hand[i])} and {tile_string(ai_hand[j])}!")
-        remove_tiles(ai_hand, i, j)
-    else:
-        draw_tile_for_ai()
+    def draw_tile_for_player(self):
+        if not self.can_match(self.player_hand):
+            new_tile = self.draw_tile()
+            if new_tile is not None:
+                self.player_hand.append(new_tile)
+                self.update_display()
+                self.info_label.config(text=f"🎯 Drew a {new_tile}!")
+            else:
+                self.info_label.config(text="❗ Deck empty, can't draw!")
+            self.root.after(1000, self.ai_turn)
+        else:
+            self.info_label.config(text="❗ You can still match, no draw allowed!")
 
-def ai_random_decision():
-    global ai_hand
-    """AI on easy difficulty will randomly match or draw tiles."""
-    if can_match(ai_hand):
-        for i in range(len(ai_hand)):
-            for j in range(i + 1, len(ai_hand)):
-                if ai_hand[i] == ai_hand[j]:
-                    print(f"🤖 AI matched {tile_string(ai_hand[i])} and {tile_string(ai_hand[j])}!")
-                    remove_tiles(ai_hand, i, j)
-                    return
-    else:
-        draw_tile_for_ai()
+    def choose_difficulty(self):
+        answer = messagebox.askquestion("Difficulty", "Play on Hard mode?")
+        self.difficulty = 'hard' if answer == 'yes' else 'easy'
+        self.info_label.config(text=f"Difficulty set to {self.difficulty.upper()}.")
 
-def draw_tile_for_ai():
-    new_tile = draw_tile()
-    if new_tile is not None:
-        print(f"🤖 AI drew a tile: {tile_string(new_tile)}")
-        ai_hand.append(new_tile)
-    else:
-        print(f"{Colors.RED}💀 AI cannot draw, deck is empty!{Colors.RESET}")
-        print(f"{Colors.RED}🤖 AI WINS!{Colors.RESET}")
-        sys.exit()
-
-def play_game():
-    while True:
-        # Player's turn
-        player_turn()
-        if not player_hand:
-            print_separator()
-            print(f"{Colors.GREEN}🏆 YOU WIN!{Colors.RESET}")
-            break
-
-        # AI's turn
+    def ai_turn(self):
+        self.info_label.config(text="🤖 AI's Turn...")
+        self.root.update()
         time.sleep(1)
-        ai_turn()
-        if not ai_hand:
-            print_separator()
-            print(f"{Colors.RED}💀 AI WINS!{Colors.RESET}")
-            break
 
-        time.sleep(2)
+        if self.difficulty == 'hard':
+            self.ai_make_smart_decision()
+        else:
+            self.ai_random_decision()
 
-def main():
-    initialize_game()
-    choose_difficulty()
-    play_game()
-    print("\n🎮 Game Over. Press Enter to exit.")
-    input()
+        self.check_game_over()
+
+    def ai_make_smart_decision(self):
+        possible_matches = []
+        for i in range(len(self.ai_hand)):
+            for j in range(i + 1, len(self.ai_hand)):
+                if self.ai_hand[i] == self.ai_hand[j]:
+                    possible_matches.append((i, j))
+
+        if possible_matches:
+            i, j = possible_matches[0]
+            del self.ai_hand[j]
+            del self.ai_hand[i]
+            self.info_label.config(text="🤖 AI matched smartly!")
+        else:
+            self.ai_draw_tile()
+
+        self.update_display()
+
+    def ai_random_decision(self):
+        if self.can_match(self.ai_hand):
+            for i in range(len(self.ai_hand)):
+                for j in range(i + 1, len(self.ai_hand)):
+                    if self.ai_hand[i] == self.ai_hand[j]:
+                        del self.ai_hand[j]
+                        del self.ai_hand[i]
+                        self.info_label.config(text="🤖 AI matched randomly!")
+                        self.update_display()
+                        return
+        self.ai_draw_tile()
+        self.update_display()
+
+    def ai_draw_tile(self):
+        new_tile = self.draw_tile()
+        if new_tile:
+            self.ai_hand.append(new_tile)
+            self.info_label.config(text=f"🤖 AI drew a tile.")
+        else:
+            self.info_label.config(text=f"🤖 Deck empty for AI!")
+
+    def can_match(self, hand):
+        return any(hand[i] == hand[j] for i in range(len(hand)) for j in range(i+1, len(hand)))
+
+    def check_game_over(self):
+        if not self.player_hand:
+            self.end_game("🏆 YOU WIN!")
+        elif not self.ai_hand:
+            self.end_game("💀 AI WINS!")
+        elif not self.deck and not self.can_match(self.player_hand) and not self.can_match(self.ai_hand):
+            self.sudden_death()
+
+    def sudden_death(self):
+        self.info_label.config(text="⚡ Sudden Death Mode Activated!")
+        self.root.update()
+        time.sleep(1.5)
+
+        while True:
+            if not self.player_hand or not self.ai_hand:
+                break
+
+            player_tile = random.choice(self.player_hand)
+            ai_tile = random.choice(self.ai_hand)
+
+            self.info_label.config(text=f"⚔️ Player draws {player_tile} vs AI draws {ai_tile}!")
+            self.root.update()
+            time.sleep(2)
+
+            if player_tile > ai_tile:
+                self.end_game("🏆 YOU WIN by Sudden Death!")
+                break
+            elif ai_tile > player_tile:
+                self.end_game("💀 AI WINS by Sudden Death!")
+                break
+            else:
+                self.info_label.config(text="😮 Tie! Drawing again...")
+                self.root.update()
+                time.sleep(1.5)
+
+    def end_game(self, message):
+        messagebox.showinfo("Game Over", message)
+        self.root.destroy()
 
 if __name__ == "__main__":
-    main()
+    root = tk.Tk()
+    game = TileMatchingGame(root)
+    root.mainloop()
